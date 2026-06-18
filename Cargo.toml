@@ -1,0 +1,13 @@
+[package]
+name = "patchwork"
+version = "0.1.0"
+edition = "2024"
+description = "A small, diff-based terminal UI toolkit for Rust built on libc."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/TheCloudlet/Patchwork"
+keywords = ["terminal", "tui", "ansi", "cli"]
+categories = ["command-line-interface"]
+
+[dependencies]
+libc = "0.2"
