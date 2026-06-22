@@ -1,6 +1,6 @@
 use libc::{
-    BRKINT, CS8, ECHO, ICANON, ICRNL, INPCK, ISIG, ISTRIP, IXON, OPOST, STDIN_FILENO, TCSANOW,
-    VMIN, VTIME, tcgetattr, tcsetattr, termios,
+    tcgetattr, tcsetattr, termios, BRKINT, CS8, ECHO, ICANON, ICRNL, INPCK, ISIG, ISTRIP, IXON,
+    OPOST, STDIN_FILENO, TCSANOW, VMIN, VTIME,
 };
 use std::io;
 

@@ -1,6 +1,6 @@
 use libc::{
-    POLLIN, SA_RESTART, SIGWINCH, STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ, c_int, c_void, ioctl,
-    pipe, poll, pollfd, read, sigaction, sigemptyset, sighandler_t, winsize, write,
+    c_int, c_void, ioctl, pipe, poll, pollfd, read, sigaction, sigemptyset, sighandler_t, winsize,
+    write, POLLIN, SA_RESTART, SIGWINCH, STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ,
 };
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicI32, Ordering};

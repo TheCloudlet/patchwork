@@ -1,5 +1,5 @@
 /// A foreground or background color.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Color {
     /// The terminal's configured default color.
     Default,
@@ -9,7 +9,7 @@ pub enum Color {
     Rgb(u8, u8, u8),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Style {
     /// Foreground (text) color.
     pub fg: Color,
@@ -71,7 +71,7 @@ impl Buffer {
         self.cells.fill(Cell::DEFAULT);
     }
 
-    fn offset(&self, row: u16, col: u16) -> Option<usize> {
+    fn offset(&self, col: u16, row: u16) -> Option<usize> {
         if row >= self.rows || col >= self.cols {
             return None;
         }
@@ -83,12 +83,14 @@ impl Buffer {
         &self.cells
     }
 
-    pub fn get(&self, row: u16, col: u16) -> Option<&Cell> {
-        self.offset(row, col).map(|i| &self.cells[i])
+    // (x, y) = (col, row)
+    pub fn get(&self, col: u16, row: u16) -> Option<&Cell> {
+        self.offset(col, row).map(|i| &self.cells[i])
     }
 
-    pub fn get_mut(&mut self, row: u16, col: u16) -> Option<&mut Cell> {
-        self.offset(row, col).map(|i| &mut self.cells[i])
+    // (x, y) = (col, row)
+    pub fn get_mut(&mut self, col: u16, row: u16) -> Option<&mut Cell> {
+        self.offset(col, row).map(|i| &mut self.cells[i])
     }
 }
 
@@ -107,10 +109,21 @@ mod tests {
 
     #[test]
     fn get_returns_none_out_of_bounds() {
-        let buf = Buffer::new(2, 2);
+        let buf = Buffer::new(2, 3); // x in 0..3, y in 0..2
         assert!(buf.get(0, 0).is_some());
-        assert!(buf.get(2, 0).is_none()); // row out of range
-        assert!(buf.get(0, 2).is_none()); // col out of range
+        assert!(buf.get(3, 0).is_none()); // x out of range
+        assert!(buf.get(0, 2).is_none()); // y out of range
+    }
+
+    #[test]
+    fn get_takes_x_y_order() {
+        // 2 rows x 3 cols. (x=2, y=1) is the last cell of the second row.
+        let mut buf = Buffer::new(2, 3);
+        buf.get_mut(2, 1).unwrap().ch = 'A';
+        // Same cell, addressed again as (x=2, y=1).
+        assert_eq!(buf.get(2, 1).unwrap().ch, 'A');
+        // It really is row 1, col 2 in row-major storage (index 1*cols + 2 = 5).
+        assert_eq!(buf.cells()[5].ch, 'A');
     }
 
     #[test]
@@ -123,7 +136,7 @@ mod tests {
     #[test]
     fn clear_resets_every_cell() {
         let mut buf = Buffer::new(1, 2);
-        buf.get_mut(0, 1).unwrap().ch = 'z';
+        buf.get_mut(1, 0).unwrap().ch = 'z'; // (x=1, y=0)
         buf.clear();
         assert!(buf.cells().iter().all(|c| *c == Cell::DEFAULT));
     }

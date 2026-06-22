@@ -1,18 +1,20 @@
 use std::io;
 
-use patchwork::buffer::{Buffer, Color, Style};
+use patchwork::buffer::{Color, Style};
+use patchwork::pane::Pane;
 use patchwork::renderer::Renderer;
+use patchwork::shape::{Dot, Line, Rect, RectShape};
 use patchwork::terminal::{Event, Key, Terminal};
+use patchwork::Draw;
 
 fn main() -> io::Result<()> {
     let mut term = Terminal::new()?;
     let size = *term.size();
 
     let mut renderer = Renderer::new(size.rows, size.cols);
-    let mut last_key: Option<char> = None;
 
     // Draw the first frame, then redraw on every event.
-    paint(renderer.next_mut(), last_key);
+    paint(&mut renderer);
     renderer.draw()?;
 
     loop {
@@ -22,101 +24,160 @@ fn main() -> io::Result<()> {
 
         match event {
             Event::Resize(size) => {
-                // Rebuild the renderer at the new size, then repaint.
                 renderer = Renderer::new(size.rows, size.cols);
             }
             Event::Key(Key::Char('q')) => break,
-            Event::Key(Key::Char(c)) => last_key = Some(c),
             Event::Key(_other) => {}
         }
 
-        paint(renderer.next_mut(), last_key);
+        paint(&mut renderer);
         renderer.draw()?;
     }
 
     Ok(())
 }
 
-/// Paints a framed box with a title and the last key pressed.
-fn paint(buf: &mut Buffer, last_key: Option<char>) {
+/// Builds the four-quadrant demo pane tree and draws it into the next frame.
+///
+/// Layout: the screen is split top/bottom, then each half left/right, giving
+/// four quadrants. Each shows one drawable kind:
+///   Q1 (top-left)     a single Dot
+///   Q2 (top-right)    a diagonal Line
+///   Q3 (bottom-left)  a filled RectShape (a "face"/surface)
+///   Q4 (bottom-right) a recursive Pane, itself split into two outlined boxes
+fn paint(renderer: &mut Renderer) {
+    let buf = renderer.next_mut();
     buf.clear();
 
+    let cols = buf.cols();
     let rows = buf.rows();
-    let cols = buf.cols();
-    if rows < 3 || cols < 3 {
-        return; // too small to draw a border
+    if cols < 4 || rows < 4 {
+        return; // too small to be worth splitting
     }
 
-    let border = Style {
-        fg: Color::Rgb(120, 200, 255),
-        bg: Color::Default,
-        bold: true,
-        underline: false,
+    let screen = Rect {
+        x: 0,
+        y: 0,
+        w: cols,
+        h: rows,
     };
-    draw_border(buf, border);
+    let (top, bottom) = screen.split_vertical(50);
+    let (q1, q2) = top.split_horizontal(50);
+    let (q3, q4) = bottom.split_horizontal(50);
 
-    let title = Style {
-        fg: Color::Rgb(255, 220, 120),
-        bg: Color::Default,
-        bold: true,
-        underline: true,
-    };
-    put_centered(buf, rows / 2 - 1, "✦ Patchwork ✦", title);
+    // Each quadrant is a child pane. Its `area` positions it; the drawables
+    // inside use coordinates relative to that pane's top-left corner.
+    let mut root = Pane::new(screen);
+    root.add_child(quadrant_dot(q1));
+    root.add_child(quadrant_line(q2));
+    root.add_child(quadrant_face(q3));
+    root.add_child(quadrant_recursive(q4));
 
-    let body = Style {
-        fg: Color::Indexed(250),
-        bg: Color::Default,
-        bold: false,
-        underline: false,
-    };
-    put_centered(buf, rows / 2 + 1, "press any key — 'q' to quit", body);
-
-    let line = match last_key {
-        Some(c) => format!("last key: {:?}", c),
-        None => "last key: (none yet)".to_string(),
-    };
-    put_centered(buf, rows / 2 + 2, &line, body);
+    // Draw the root against a zero origin: its own `area` carries the position.
+    root.draw(buf, ORIGIN);
 }
 
-/// Draws a single-line box around the buffer's edges.
-fn draw_border(buf: &mut Buffer, style: Style) {
-    let rows = buf.rows();
-    let cols = buf.cols();
-    let last_row = rows - 1;
-    let last_col = cols - 1;
+/// A zero-origin rect: the top of the pane tree is positioned by its own area.
+const ORIGIN: Rect = Rect {
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+};
 
-    for col in 0..cols {
-        put(buf, 0, col, '─', style);
-        put(buf, last_row, col, '─', style);
-    }
-    for row in 0..rows {
-        put(buf, row, 0, '│', style);
-        put(buf, row, last_col, '│', style);
-    }
-    put(buf, 0, 0, '┌', style);
-    put(buf, 0, last_col, '┐', style);
-    put(buf, last_row, 0, '└', style);
-    put(buf, last_row, last_col, '┘', style);
-}
-
-/// Writes `text` horizontally centered on `row`, clipped to the buffer.
-fn put_centered(buf: &mut Buffer, row: u16, text: &str, style: Style) {
-    let width = text.chars().count() as u16;
-    let cols = buf.cols();
-    let start = cols.saturating_sub(width) / 2;
-    for (i, ch) in text.chars().enumerate() {
-        let col = start + i as u16;
-        if col >= cols {
-            break;
-        }
-        put(buf, row, col, ch, style);
+/// An outlined frame filling the pane (relative coords: 0,0 .. w,h).
+fn frame_local(w: u16, h: u16, color: Color) -> RectShape {
+    RectShape {
+        area: Rect { x: 0, y: 0, w, h },
+        style: solid(color),
+        fill: false,
     }
 }
 
-/// Sets a single cell if it is within bounds.
-fn put(buf: &mut Buffer, row: u16, col: u16, ch: char, style: Style) {
-    if let Some(cell) = buf.get_mut(row, col) {
-        cell.ch = ch;
-        cell.style = style;
+/// Q1: a frame plus a single Dot at the quadrant's center.
+fn quadrant_dot(area: Rect) -> Pane {
+    let mut pane = Pane::new(area);
+    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+    pane.push(Box::new(Dot {
+        x: area.w / 2,
+        y: area.h / 2,
+        style: solid(Color::Rgb(255, 90, 90)),
+    }));
+    pane
+}
+
+/// Q2: a frame plus a diagonal Line across the quadrant's interior.
+fn quadrant_line(area: Rect) -> Pane {
+    let mut pane = Pane::new(area);
+    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+    pane.push(Box::new(Line {
+        x1: 1,
+        y1: 1,
+        x2: area.w.saturating_sub(2),
+        y2: area.h.saturating_sub(2),
+        style: solid(Color::Rgb(120, 255, 120)),
+    }));
+    pane
+}
+
+/// Q3: a filled RectShape — a solid "surface" inset inside a frame.
+fn quadrant_face(area: Rect) -> Pane {
+    let mut pane = Pane::new(area);
+    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+    if area.w > 2 && area.h > 2 {
+        pane.push(Box::new(RectShape {
+            area: Rect {
+                x: 1,
+                y: 1,
+                w: area.w - 2,
+                h: area.h - 2,
+            },
+            style: Style {
+                bg: Color::Rgb(60, 60, 120),
+                ..Style::DEFAULT
+            },
+            fill: true,
+        }));
+    }
+    pane
+}
+
+/// Q4: a recursive Pane. The quadrant is itself split into two sub-panes,
+/// each drawing its own outlined box — a pane tree nested inside a pane.
+fn quadrant_recursive(area: Rect) -> Pane {
+    let mut pane = Pane::new(area);
+    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+
+    // Split the quadrant's interior (in local coords) into left/right sub-panes.
+    if area.w > 4 && area.h > 2 {
+        let inner = Rect {
+            x: 1,
+            y: 1,
+            w: area.w - 2,
+            h: area.h - 2,
+        };
+        let (left, right) = inner.split_horizontal(50);
+
+        let mut left_pane = Pane::new(left);
+        left_pane.push(Box::new(frame_local(left.w, left.h, Color::Rgb(255, 220, 120))));
+
+        let mut right_pane = Pane::new(right);
+        right_pane.push(Box::new(frame_local(
+            right.w,
+            right.h,
+            Color::Rgb(255, 140, 220),
+        )));
+
+        pane.add_child(left_pane);
+        pane.add_child(right_pane);
+    }
+    pane
+}
+
+/// A plain style with the given foreground color and defaults elsewhere.
+fn solid(fg: Color) -> Style {
+    Style {
+        fg,
+        ..Style::DEFAULT
     }
 }

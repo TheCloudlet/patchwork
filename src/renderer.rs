@@ -144,7 +144,7 @@ mod tests {
     fn diff_reports_changed_cell_at_correct_coords() {
         let old = Buffer::new(2, 3);
         let mut new = old.clone();
-        new.get_mut(1, 2).unwrap().ch = 'A';
+        new.get_mut(2, 1).unwrap().ch = 'A'; // (x=2, y=1) => row 1, col 2
 
         let d = diff(&old, &new);
         assert_eq!(d.changes.len(), 1);
