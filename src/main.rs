@@ -1,11 +1,11 @@
 use std::io;
 
+use patchwork::Draw;
 use patchwork::buffer::{Color, Style};
 use patchwork::pane::Pane;
 use patchwork::renderer::Renderer;
 use patchwork::shape::{Dot, Line, Rect, RectShape};
 use patchwork::terminal::{Event, Key, Terminal};
-use patchwork::Draw;
 
 fn main() -> io::Result<()> {
     let mut term = Terminal::new()?;
@@ -97,7 +97,11 @@ fn frame_local(w: u16, h: u16, color: Color) -> RectShape {
 /// Q1: a frame plus a single Dot at the quadrant's center.
 fn quadrant_dot(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+    pane.push(Box::new(frame_local(
+        area.w,
+        area.h,
+        Color::Rgb(120, 200, 255),
+    )));
     pane.push(Box::new(Dot {
         x: area.w / 2,
         y: area.h / 2,
@@ -109,7 +113,11 @@ fn quadrant_dot(area: Rect) -> Pane {
 /// Q2: a frame plus a diagonal Line across the quadrant's interior.
 fn quadrant_line(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+    pane.push(Box::new(frame_local(
+        area.w,
+        area.h,
+        Color::Rgb(120, 200, 255),
+    )));
     pane.push(Box::new(Line {
         x1: 1,
         y1: 1,
@@ -123,7 +131,11 @@ fn quadrant_line(area: Rect) -> Pane {
 /// Q3: a filled RectShape — a solid "surface" inset inside a frame.
 fn quadrant_face(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+    pane.push(Box::new(frame_local(
+        area.w,
+        area.h,
+        Color::Rgb(120, 200, 255),
+    )));
     if area.w > 2 && area.h > 2 {
         pane.push(Box::new(RectShape {
             area: Rect {
@@ -146,7 +158,11 @@ fn quadrant_face(area: Rect) -> Pane {
 /// each drawing its own outlined box — a pane tree nested inside a pane.
 fn quadrant_recursive(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(area.w, area.h, Color::Rgb(120, 200, 255))));
+    pane.push(Box::new(frame_local(
+        area.w,
+        area.h,
+        Color::Rgb(120, 200, 255),
+    )));
 
     // Split the quadrant's interior (in local coords) into left/right sub-panes.
     if area.w > 4 && area.h > 2 {
@@ -159,7 +175,11 @@ fn quadrant_recursive(area: Rect) -> Pane {
         let (left, right) = inner.split_horizontal(50);
 
         let mut left_pane = Pane::new(left);
-        left_pane.push(Box::new(frame_local(left.w, left.h, Color::Rgb(255, 220, 120))));
+        left_pane.push(Box::new(frame_local(
+            left.w,
+            left.h,
+            Color::Rgb(255, 220, 120),
+        )));
 
         let mut right_pane = Pane::new(right);
         right_pane.push(Box::new(frame_local(

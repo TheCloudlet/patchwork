@@ -1,7 +1,7 @@
 // FIXME: Add clip when out-of-bound
 
-use crate::buffer::{Buffer, Style};
 use crate::Draw;
+use crate::buffer::{Buffer, Style};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Dot {

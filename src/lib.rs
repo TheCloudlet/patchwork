@@ -4,6 +4,7 @@ pub mod raw_mode;
 pub mod renderer;
 pub mod shape;
 pub mod terminal;
+pub mod text;
 
 use buffer::Buffer;
 use shape::Rect;

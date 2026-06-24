@@ -1,5 +1,5 @@
-use crate::shape::Rect;
 use crate::Draw;
+use crate::shape::Rect;
 
 pub struct Pane {
     pub area: Rect,
