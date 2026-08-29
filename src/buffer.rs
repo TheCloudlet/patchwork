@@ -89,7 +89,7 @@ impl Buffer {
     }
 
     // (x, y) = (col, row)
-    pub fn get_mut(&mut self, col: u16, row: u16) -> Option<&mut Cell> {
+    pub(crate) fn get_mut(&mut self, col: u16, row: u16) -> Option<&mut Cell> {
         self.offset(col, row).map(|i| &mut self.cells[i])
     }
 }

@@ -5,7 +5,6 @@ use patchwork::buffer::{Color, Style};
 use patchwork::pane::Pane;
 use patchwork::renderer::Renderer;
 use patchwork::shape::{Dot, Line, Rect, RectShape};
-use patchwork::surface::Surface;
 use patchwork::terminal::{Event, Key, Terminal};
 
 fn main() -> io::Result<()> {
@@ -47,11 +46,10 @@ fn main() -> io::Result<()> {
 ///   Q3 (bottom-left)  a filled RectShape (a "face"/surface)
 ///   Q4 (bottom-right) a recursive Pane, itself split into two outlined boxes
 fn paint(renderer: &mut Renderer) {
-    let buf = renderer.next_mut();
-    buf.clear();
+    let mut surface = renderer.frame();
 
-    let cols = buf.cols();
-    let rows = buf.rows();
+    let cols = surface.width();
+    let rows = surface.height();
     if cols < 4 || rows < 4 {
         return; // too small to be worth splitting
     }
@@ -74,7 +72,7 @@ fn paint(renderer: &mut Renderer) {
     root.add_child(quadrant_face(q3));
     root.add_child(quadrant_recursive(q4));
 
-    root.draw(&mut Surface::new(buf));
+    root.draw(&mut surface);
 }
 
 /// An outlined frame filling the pane (relative coords: 0,0 .. w,h).

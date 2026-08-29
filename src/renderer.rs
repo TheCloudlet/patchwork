@@ -1,4 +1,5 @@
 use crate::buffer::{Buffer, Cell, Color, Style};
+use crate::surface::Surface;
 use std::fmt::Write as _;
 use std::io;
 
@@ -99,9 +100,20 @@ impl Renderer {
         }
     }
 
-    /// The buffer to draw the next frame into. Draw here, then call [`Renderer::draw`].
-    pub fn next_mut(&mut self) -> &mut Buffer {
-        &mut self.next
+    /// Blanks the back buffer and returns a root [`Surface`] covering it,
+    /// ready to paint. Every frame starts blank — nothing survives from an
+    /// earlier frame, so a frame is a pure function of what is drawn into it.
+    /// Call [`Renderer::draw`] once painting is done.
+    pub fn frame(&mut self) -> Surface<'_> {
+        self.next.clear();
+        Surface::new(&mut self.next)
+    }
+
+    /// What the terminal currently shows — the frame last presented by
+    /// [`Renderer::draw`]. Read-only: inspecting the result of a draw cannot
+    /// violate the containment guarantee, since nothing here can paint.
+    pub fn current(&self) -> &Buffer {
+        &self.current
     }
 
     /// Diffs the next frame against the current one, emits the changed cells,
