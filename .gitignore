@@ -1,1 +1,6 @@
-/target
+target
+examples/*/nyancat_demo
+examples/*/*_demo
+.scratch/
+docs/agents/
+CLAUDE.md
