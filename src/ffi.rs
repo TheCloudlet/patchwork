@@ -1,4 +1,5 @@
-//! Immediate-mode C API, per ADR-0004.
+//! Immediate-mode C API, exposing primitives only (no Pane tree, no
+//! callback surface for C-defined drawables).
 //!
 //! A C caller creates a [`Renderer`], begins a frame, narrows/ends regions to
 //! move around the screen, paints primitives, and presents — the same shape

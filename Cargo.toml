@@ -9,5 +9,10 @@ repository = "https://github.com/TheCloudlet/Patchwork"
 keywords = ["terminal", "tui", "ansi", "cli"]
 categories = ["command-line-interface"]
 
+[lib]
+# staticlib so the FFI demo in examples/ can link against pw_* symbols from
+# a C/C++ toolchain; rlib (Rust-only) stays too since src/main.rs needs it.
+crate-type = ["rlib", "staticlib"]
+
 [dependencies]
 libc = "0.2"

@@ -75,7 +75,7 @@ impl Draw for Line {
 /// with width `w` and height `h`. Pure geometry — used for layout and splits.
 /// To draw a rectangle, wrap one in a [`RectShape`].
 ///
-/// `#[repr(C)]` to cross the FFI boundary (ADR-0004).
+/// `#[repr(C)]` so this can cross the FFI boundary into C.
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Rect {

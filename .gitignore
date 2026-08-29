@@ -1,6 +1,6 @@
-target
-examples/*/nyancat_demo
+/target
 examples/*/*_demo
+examples/*/*_verify
 .scratch/
 docs/agents/
 CLAUDE.md

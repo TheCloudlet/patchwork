@@ -1,4 +1,4 @@
-//! Integration tests for the immediate-mode C API (ADR-0004): the exported
+//! Integration tests for the immediate-mode C API: the exported
 //! `pw_*` functions, called directly as Rust would call any `extern "C"`
 //! function, asserting on the resulting grid. No C toolchain involved —
 //! this covers the logic and the `#[repr(C)]` layouts the same way a real C
