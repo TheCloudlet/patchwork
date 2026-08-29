@@ -1,4 +1,9 @@
 /// A foreground or background color.
+///
+/// `#[repr(C, u8)]` for `Color` in [`Style`] to cross the FFI boundary
+/// (ADR-0004) — a stable, C-compatible tagged union: one discriminant byte
+/// then the largest variant's payload.
+#[repr(C, u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Color {
     /// The terminal's configured default color.
@@ -9,6 +14,8 @@ pub enum Color {
     Rgb(u8, u8, u8),
 }
 
+/// `#[repr(C)]` to cross the FFI boundary (ADR-0004).
+#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Style {
     /// Foreground (text) color.

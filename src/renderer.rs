@@ -109,6 +109,14 @@ impl Renderer {
         Surface::new(&mut self.next)
     }
 
+    /// A root [`Surface`] over the back buffer, without blanking it — for
+    /// re-deriving a Surface mid-frame (the FFI layer's narrowing stack).
+    /// Crate-only: an external caller blanking mid-frame would break "a frame
+    /// is a pure function of state".
+    pub(crate) fn back_surface(&mut self) -> Surface<'_> {
+        Surface::new(&mut self.next)
+    }
+
     /// What the terminal currently shows — the frame last presented by
     /// [`Renderer::draw`]. Read-only: inspecting the result of a draw cannot
     /// violate the containment guarantee, since nothing here can paint.
