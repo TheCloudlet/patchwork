@@ -3,18 +3,32 @@ pub mod pane;
 pub mod raw_mode;
 pub mod renderer;
 pub mod shape;
+pub mod surface;
 pub mod terminal;
 pub mod text;
 
-use buffer::Buffer;
-use shape::Rect;
+use surface::Surface;
 
 pub trait Draw {
-    /// Renders `self` into `buf`, positioned within `area`.
+    /// Renders `self` onto `surface`.
     ///
-    /// `area` is the absolute region this drawable was assigned. A drawable's
-    /// own coordinates are relative to `area`'s top-left corner: it adds
-    /// `area.x` / `area.y` to place itself, and may use `area.w` / `area.h` to
-    /// stay within bounds.
-    fn draw(&self, buf: &mut Buffer, area: Rect);
+    /// A drawable's own coordinates are relative to the surface's own
+    /// top-left corner. Anything written outside the surface is discarded —
+    /// clipping is the surface's job, not the drawable's.
+    fn draw(&self, surface: &mut Surface);
+}
+
+/// Test-only helpers shared across modules' `#[cfg(test)]` blocks.
+#[cfg(test)]
+pub(crate) mod test_support {
+    use crate::buffer::Buffer;
+
+    /// Renders a buffer as one string per row, joined by newlines — the whole
+    /// grid in one assertion, and a readable picture when it fails.
+    pub(crate) fn render(buf: &Buffer) -> String {
+        (0..buf.rows())
+            .map(|y| (0..buf.cols()).map(|x| buf.get(x, y).unwrap().ch).collect())
+            .collect::<Vec<String>>()
+            .join("\n")
+    }
 }

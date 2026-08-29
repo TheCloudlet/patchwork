@@ -1,7 +1,6 @@
-// FIXME: Add clip when out-of-bound
-
 use crate::Draw;
-use crate::buffer::{Buffer, Style};
+use crate::buffer::Style;
+use crate::surface::Surface;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Dot {
@@ -11,14 +10,8 @@ pub struct Dot {
 }
 
 impl Draw for Dot {
-    fn draw(&self, buf: &mut Buffer, area: Rect) {
-        // Coordinates are relative to `area`'s top-left corner.
-        let x = area.x + self.x;
-        let y = area.y + self.y;
-        if let Some(cell) = buf.get_mut(x, y) {
-            cell.ch = '•';
-            cell.style = self.style;
-        }
+    fn draw(&self, surface: &mut Surface) {
+        surface.set(self.x, self.y, '•', self.style);
     }
 }
 
@@ -32,20 +25,18 @@ pub struct Line {
 }
 
 impl Draw for Line {
-    fn draw(&self, buf: &mut Buffer, area: Rect) {
+    fn draw(&self, surface: &mut Surface) {
         // Bresenham's line algorithm, generalized to every octant.
         //
         // We step one cell at a time from (x1, y1) toward (x2, y2). `err`
         // tracks the accumulated distance from the ideal line; whenever it
         // crosses the threshold we also step on the minor axis. Coordinates are
         // promoted to i32 so the deltas can go negative without underflowing.
-        // Endpoints are relative to `area`'s top-left corner.
-        let ox = area.x as i32;
-        let oy = area.y as i32;
-        let mut x = ox + self.x1 as i32;
-        let mut y = oy + self.y1 as i32;
-        let x2 = ox + self.x2 as i32;
-        let y2 = oy + self.y2 as i32;
+        // Endpoints are relative to the surface's own top-left corner.
+        let mut x = self.x1 as i32;
+        let mut y = self.y1 as i32;
+        let x2 = self.x2 as i32;
+        let y2 = self.y2 as i32;
 
         let dx = (x2 - x).abs();
         let dy = -(y2 - y).abs(); // negative by convention in this formulation
@@ -54,14 +45,11 @@ impl Draw for Line {
         let mut err = dx + dy;
 
         loop {
-            // Plot the current cell, skipping anything off the buffer. Negative
-            // coords can't index a u16 buffer, so guard before casting.
-            if x >= 0
-                && y >= 0
-                && let Some(cell) = buf.get_mut(x as u16, y as u16)
-            {
-                cell.ch = '·';
-                cell.style = self.style;
+            // Plot the current cell. Negative coords can't index a u16
+            // surface, so guard before casting; the surface itself drops
+            // anything past its far edge.
+            if x >= 0 && y >= 0 {
+                surface.set(x as u16, y as u16, '·', self.style);
             }
 
             if x == x2 && y == y2 {
@@ -133,6 +121,42 @@ impl Rect {
         };
         (left, right)
     }
+
+    /// Whether this rect covers no cells at all.
+    pub fn is_empty(&self) -> bool {
+        self.w == 0 || self.h == 0
+    }
+
+    /// The overlap between two rects, or an empty rect if they don't overlap.
+    ///
+    /// Both rects must be in the same coordinate space. The result is never
+    /// larger than either input — this is what keeps a Pane's descendants
+    /// inside its bounds, however optimistic their own areas are.
+    pub fn intersect(&self, other: Rect) -> Rect {
+        // Edges are half-open: a rect covers x .. x + w, right edge excluded.
+        let left = self.x.max(other.x);
+        let top = self.y.max(other.y);
+        let right = (self.x + self.w).min(other.x + other.w);
+        let bottom = (self.y + self.h).min(other.y + other.h);
+
+        // Disjoint rects produce a crossed-over range; report those as empty
+        // rather than underflowing on right - left.
+        if right <= left || bottom <= top {
+            return Rect {
+                x: left,
+                y: top,
+                w: 0,
+                h: 0,
+            };
+        }
+
+        Rect {
+            x: left,
+            y: top,
+            w: right - left,
+            h: bottom - top,
+        }
+    }
 }
 
 /// A drawable rectangle: a [`Rect`] area plus how to paint it.
@@ -149,10 +173,10 @@ pub struct RectShape {
 }
 
 impl Draw for RectShape {
-    fn draw(&self, buf: &mut Buffer, area: Rect) {
-        // `self.area` is relative to the given `area`'s top-left corner.
-        let x = area.x + self.area.x;
-        let y = area.y + self.area.y;
+    fn draw(&self, surface: &mut Surface) {
+        // `self.area` is relative to the surface's own top-left corner.
+        let x = self.area.x;
+        let y = self.area.y;
         let w = self.area.w;
         let h = self.area.h;
 
@@ -161,16 +185,13 @@ impl Draw for RectShape {
             return;
         }
 
-        // Local helper: set the cell at absolute (x, y) to `ch` in this style.
+        // Local helper: set the cell at surface-relative (x, y) to `ch`.
         let style = self.style;
-        let put = |buf: &mut Buffer, px: u16, py: u16, ch: char| {
-            if let Some(cell) = buf.get_mut(px, py) {
-                cell.ch = ch;
-                cell.style = style;
-            }
+        let put = |surface: &mut Surface, px: u16, py: u16, ch: char| {
+            surface.set(px, py, ch, style);
         };
 
-        // Absolute edges of the rect.
+        // Relative edges of the rect.
         let left = x;
         let right = x + w - 1;
         let top = y;
@@ -181,7 +202,7 @@ impl Draw for RectShape {
             // including 1xN / Nx1 strips.
             for py in top..=bottom {
                 for px in left..=right {
-                    put(buf, px, py, ' ');
+                    put(surface, px, py, ' ');
                 }
             }
             return;
@@ -191,35 +212,35 @@ impl Draw for RectShape {
         // Thinner rects degenerate: a 1-wide rect is a vertical line, a
         // 1-tall rect is a horizontal line, and 1x1 is a single dot.
         if w == 1 && h == 1 {
-            put(buf, left, top, '•');
+            put(surface, left, top, '•');
             return;
         }
         if w == 1 {
             for py in top..=bottom {
-                put(buf, left, py, '│');
+                put(surface, left, py, '│');
             }
             return;
         }
         if h == 1 {
             for px in left..=right {
-                put(buf, px, top, '─');
+                put(surface, px, top, '─');
             }
             return;
         }
 
         // Outline: top/bottom edges, then left/right edges, then corners.
         for px in left..=right {
-            put(buf, px, top, '─');
-            put(buf, px, bottom, '─');
+            put(surface, px, top, '─');
+            put(surface, px, bottom, '─');
         }
         for py in top..=bottom {
-            put(buf, left, py, '│');
-            put(buf, right, py, '│');
+            put(surface, left, py, '│');
+            put(surface, right, py, '│');
         }
-        put(buf, left, top, '┌');
-        put(buf, right, top, '┐');
-        put(buf, left, bottom, '└');
-        put(buf, right, bottom, '┘');
+        put(surface, left, top, '┌');
+        put(surface, right, top, '┐');
+        put(surface, left, bottom, '└');
+        put(surface, right, bottom, '┘');
     }
 }
 
@@ -227,20 +248,12 @@ impl Draw for RectShape {
 mod tests {
     use super::*;
     use crate::buffer::{Buffer, Color};
+    use crate::test_support::render;
 
     /// Shorthand for building a geometry rect in the split tests.
     fn rect(x: u16, y: u16, w: u16, h: u16) -> Rect {
         Rect { x, y, w, h }
     }
-
-    /// Zero origin: drawing against it makes relative coords equal absolute,
-    /// so the shape-drawing tests can keep using absolute coordinates.
-    const ZERO: Rect = Rect {
-        x: 0,
-        y: 0,
-        w: 0,
-        h: 0,
-    };
 
     #[test]
     fn dot_draws_bullet_at_its_xy() {
@@ -250,12 +263,9 @@ mod tests {
             y: 1,
             style: Style::DEFAULT,
         };
-        dot.draw(&mut buf, ZERO);
+        dot.draw(&mut Surface::new(&mut buf));
 
-        // The bullet lands at (x=2, y=1), and nowhere else.
-        assert_eq!(buf.get(2, 1).unwrap().ch, '•');
-        let drawn = buf.cells().iter().filter(|c| c.ch == '•').count();
-        assert_eq!(drawn, 1);
+        assert_eq!(render(&buf), "    \n  • \n    ");
     }
 
     #[test]
@@ -265,7 +275,7 @@ mod tests {
             fg: Color::Indexed(9),
             ..Style::DEFAULT
         };
-        Dot { x: 0, y: 0, style }.draw(&mut buf, ZERO);
+        Dot { x: 0, y: 0, style }.draw(&mut Surface::new(&mut buf));
         assert_eq!(buf.get(0, 0).unwrap().style, style);
     }
 
@@ -278,8 +288,8 @@ mod tests {
             y: 5,
             style: Style::DEFAULT,
         }
-        .draw(&mut buf, ZERO);
-        assert!(buf.cells().iter().all(|c| c.ch != '•'));
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "  \n  ");
     }
 
     #[test]
@@ -326,8 +336,8 @@ mod tests {
             y2: 0,
             style: Style::DEFAULT,
         }
-        .draw(&mut buf, ZERO);
-        assert!(buf.cells().iter().all(|c| c.ch == '·'));
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "····");
     }
 
     #[test]
@@ -340,8 +350,8 @@ mod tests {
             y2: 2,
             style: Style::DEFAULT,
         }
-        .draw(&mut buf, ZERO);
-        assert!(buf.cells().iter().all(|c| c.ch == '·'));
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "·\n·\n·");
     }
 
     #[test]
@@ -354,14 +364,9 @@ mod tests {
             y2: 2,
             style: Style::DEFAULT,
         }
-        .draw(&mut buf, ZERO);
-        // Perfect 45°: exactly the main diagonal is drawn.
-        assert_eq!(buf.get(0, 0).unwrap().ch, '·');
-        assert_eq!(buf.get(1, 1).unwrap().ch, '·');
-        assert_eq!(buf.get(2, 2).unwrap().ch, '·');
-        // Off-diagonal corners stay blank.
-        assert_eq!(buf.get(2, 0).unwrap().ch, ' ');
-        assert_eq!(buf.get(0, 2).unwrap().ch, ' ');
+        .draw(&mut Surface::new(&mut buf));
+        // Perfect 45°: exactly the main diagonal is drawn, corners stay blank.
+        assert_eq!(render(&buf), "·  \n · \n  ·");
     }
 
     #[test]
@@ -375,10 +380,8 @@ mod tests {
             y2: 0,
             style: Style::DEFAULT,
         }
-        .draw(&mut buf, ZERO);
-        assert_eq!(buf.get(0, 0).unwrap().ch, '·'); // endpoint
-        assert_eq!(buf.get(1, 0).unwrap().ch, '·');
-        assert_eq!(buf.get(2, 0).unwrap().ch, '·'); // other endpoint
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "···");
     }
 
     #[test]
@@ -391,8 +394,23 @@ mod tests {
             y2: 0,
             style: Style::DEFAULT,
         }
-        .draw(&mut buf, ZERO);
-        assert_eq!(buf.get(0, 0).unwrap().ch, '·');
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "·");
+    }
+
+    #[test]
+    fn line_endpoint_outside_surface_draws_only_the_visible_portion() {
+        // x2 reaches past the 3-wide surface; only the in-bounds prefix draws.
+        let mut buf = Buffer::new(1, 3);
+        Line {
+            x1: 0,
+            y1: 0,
+            x2: 5,
+            y2: 0,
+            style: Style::DEFAULT,
+        }
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "···");
     }
 
     #[test]
@@ -403,18 +421,9 @@ mod tests {
             style: Style::DEFAULT,
             fill: false,
         }
-        .draw(&mut buf, ZERO);
+        .draw(&mut Surface::new(&mut buf));
 
-        // Corners.
-        assert_eq!(buf.get(0, 0).unwrap().ch, '┌');
-        assert_eq!(buf.get(2, 0).unwrap().ch, '┐');
-        assert_eq!(buf.get(0, 2).unwrap().ch, '└');
-        assert_eq!(buf.get(2, 2).unwrap().ch, '┘');
-        // Edges.
-        assert_eq!(buf.get(1, 0).unwrap().ch, '─');
-        assert_eq!(buf.get(0, 1).unwrap().ch, '│');
-        // The center stays blank (outline only).
-        assert_eq!(buf.get(1, 1).unwrap().ch, ' ');
+        assert_eq!(render(&buf), "┌─┐\n│ │\n└─┘");
     }
 
     #[test]
@@ -429,7 +438,7 @@ mod tests {
             style,
             fill: true,
         }
-        .draw(&mut buf, ZERO);
+        .draw(&mut Surface::new(&mut buf));
 
         // Every cell is a blank painted in the fill style.
         assert!(buf.cells().iter().all(|c| c.ch == ' ' && c.style == style));
@@ -443,9 +452,9 @@ mod tests {
             style: Style::DEFAULT,
             fill: false,
         }
-        .draw(&mut buf, ZERO);
+        .draw(&mut Surface::new(&mut buf));
         // No box corners — just a vertical line of '│'.
-        assert!(buf.cells().iter().all(|c| c.ch == '│'));
+        assert_eq!(render(&buf), "│\n│\n│");
     }
 
     #[test]
@@ -456,8 +465,8 @@ mod tests {
             style: Style::DEFAULT,
             fill: false,
         }
-        .draw(&mut buf, ZERO);
-        assert!(buf.cells().iter().all(|c| c.ch == '─'));
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "────");
     }
 
     #[test]
@@ -468,8 +477,8 @@ mod tests {
             style: Style::DEFAULT,
             fill: false,
         }
-        .draw(&mut buf, ZERO);
-        assert_eq!(buf.get(0, 0).unwrap().ch, '•');
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "•");
     }
 
     #[test]
@@ -481,8 +490,23 @@ mod tests {
             style: Style::DEFAULT,
             fill: true,
         }
-        .draw(&mut buf, ZERO);
-        assert!(buf.cells().iter().all(|c| c.ch == ' '));
+        .draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), " \n \n ");
+    }
+
+    #[test]
+    fn rect_shape_outline_clipped_by_a_smaller_surface() {
+        // The rect wants a 4x4 box but the surface only has 3x3 to give.
+        let mut buf = Buffer::new(3, 3);
+        RectShape {
+            area: rect(0, 0, 4, 4),
+            style: Style::DEFAULT,
+            fill: false,
+        }
+        .draw(&mut Surface::new(&mut buf));
+        // Right/bottom edge at x=3/y=3 falls outside the 3x3 surface and is
+        // dropped; nothing panics or corrupts a neighbour.
+        assert_eq!(render(&buf), "┌──\n│  \n│  ");
     }
 
     #[test]

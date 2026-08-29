@@ -1,14 +1,15 @@
-use crate::buffer::{Buffer, Style};
-use crate::shape::Rect;
 use crate::Draw;
+use crate::buffer::Style;
+use crate::shape::Rect;
+use crate::surface::Surface;
 
 /// A box of text drawn within a rectangular area.
 ///
-/// `text_area` positions and bounds the text relative to the region passed to
-/// [`Draw::draw`]: its `x`/`y` are the top-left offset, and `w`/`h` clip how
-/// much is shown. This version lays out a single line — characters past `w`
-/// (or any row past the first) are dropped. Wrapping and alignment can come
-/// later.
+/// `text_area` positions and bounds the text relative to the surface passed
+/// to [`Draw::draw`]: its `x`/`y` are the top-left offset, and `w`/`h` clip
+/// how much is shown. This version lays out a single line — characters past
+/// `w` (or any row past the first) are dropped. Wrapping and alignment can
+/// come later.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TextBox {
     pub text_area: Rect,
@@ -31,15 +32,15 @@ impl TextBox {
 }
 
 impl Draw for TextBox {
-    fn draw(&self, buf: &mut Buffer, area: Rect) {
+    fn draw(&self, surface: &mut Surface) {
         // Nothing to draw if the box has no width or height.
         if self.text_area.w == 0 || self.text_area.h == 0 {
             return;
         }
 
-        // Top-left of the text, relative to the assigned `area`.
-        let ox = area.x + self.text_area.x;
-        let oy = area.y + self.text_area.y;
+        // Top-left of the text, relative to the surface's own corner.
+        let ox = self.text_area.x;
+        let oy = self.text_area.y;
 
         // Character wrap: place glyphs left to right; advance to the next row at
         // the box width or on a '\n'. Rows past `h` are dropped (truncation).
@@ -63,10 +64,7 @@ impl Draw for TextBox {
                     break;
                 }
             }
-            if let Some(cell) = buf.get_mut(ox + col, oy + row) {
-                cell.ch = ch;
-                cell.style = self.style;
-            }
+            surface.set(ox + col, oy + row, ch, self.style);
             col += 1;
         }
     }
@@ -76,18 +74,7 @@ impl Draw for TextBox {
 mod tests {
     use super::*;
     use crate::buffer::{Buffer, Color};
-
-    /// Zero origin: drawing against it makes the box's own coords absolute.
-    const ORIGIN: Rect = Rect {
-        x: 0,
-        y: 0,
-        w: 0,
-        h: 0,
-    };
-
-    fn read_row(buf: &Buffer, y: u16, len: u16) -> String {
-        (0..len).map(|x| buf.get(x, y).unwrap().ch).collect()
-    }
+    use crate::test_support::render;
 
     #[test]
     fn new_sizes_box_to_fit_the_text() {
@@ -106,9 +93,9 @@ mod tests {
     #[test]
     fn draws_characters_at_its_offset() {
         let mut buf = Buffer::new(1, 5); // 1 row, 5 cols
-        TextBox::new(1, 0, "abc", Style::DEFAULT).draw(&mut buf, ORIGIN);
+        TextBox::new(1, 0, "abc", Style::DEFAULT).draw(&mut Surface::new(&mut buf));
         // Starts at x=1: " abc " in a 5-wide row.
-        assert_eq!(read_row(&buf, 0, 5), " abc ");
+        assert_eq!(render(&buf), " abc ");
     }
 
     #[test]
@@ -125,8 +112,8 @@ mod tests {
             data: "hello".to_string(),
             style: Style::DEFAULT,
         };
-        tb.draw(&mut buf, ORIGIN);
-        assert_eq!(read_row(&buf, 0, 6), "hel   ");
+        tb.draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "hel   ");
     }
 
     #[test]
@@ -143,9 +130,8 @@ mod tests {
             data: "helloo".to_string(),
             style: Style::DEFAULT,
         };
-        tb.draw(&mut buf, ORIGIN);
-        assert_eq!(read_row(&buf, 0, 4), "hel ");
-        assert_eq!(read_row(&buf, 1, 4), "loo ");
+        tb.draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "hel \nloo ");
     }
 
     #[test]
@@ -162,9 +148,8 @@ mod tests {
             data: "ab\ncd".to_string(),
             style: Style::DEFAULT,
         };
-        tb.draw(&mut buf, ORIGIN);
-        assert_eq!(read_row(&buf, 0, 4), "ab  ");
-        assert_eq!(read_row(&buf, 1, 4), "cd  ");
+        tb.draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "ab  \ncd  ");
     }
 
     #[test]
@@ -181,10 +166,8 @@ mod tests {
             data: "aabbcc".to_string(),
             style: Style::DEFAULT,
         };
-        tb.draw(&mut buf, ORIGIN);
-        assert_eq!(read_row(&buf, 0, 3), "aa ");
-        assert_eq!(read_row(&buf, 1, 3), "bb ");
-        assert_eq!(read_row(&buf, 2, 3), "   "); // "cc" dropped
+        tb.draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "aa \nbb \n   "); // "cc" dropped
     }
 
     #[test]
@@ -194,30 +177,39 @@ mod tests {
             fg: Color::Indexed(3),
             ..Style::DEFAULT
         };
-        TextBox::new(0, 0, "x", style).draw(&mut buf, ORIGIN);
+        TextBox::new(0, 0, "x", style).draw(&mut Surface::new(&mut buf));
         assert_eq!(buf.get(0, 0).unwrap().style, style);
     }
 
     #[test]
-    fn area_offset_shifts_the_text() {
-        // The same box drawn against a shifted area lands shifted.
+    fn narrowed_surface_shifts_the_text() {
+        // The same box drawn against a narrowed sub-surface lands shifted.
         let mut buf = Buffer::new(2, 4);
-        let area = Rect {
+        let mut root = Surface::new(&mut buf);
+        let mut sub = root.sub(Rect {
             x: 1,
             y: 1,
             w: 3,
             h: 1,
-        };
-        TextBox::new(0, 0, "ok", Style::DEFAULT).draw(&mut buf, area);
+        });
+        TextBox::new(0, 0, "ok", Style::DEFAULT).draw(&mut sub);
         assert_eq!(buf.get(1, 1).unwrap().ch, 'o');
         assert_eq!(buf.get(2, 1).unwrap().ch, 'k');
     }
 
     #[test]
-    fn off_buffer_is_a_noop() {
+    fn text_past_the_surface_edge_is_truncated() {
+        // The box claims a 5-wide line but the surface only has 3 columns.
+        let mut buf = Buffer::new(1, 3);
+        TextBox::new(0, 0, "hello", Style::DEFAULT).draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "hel");
+    }
+
+    #[test]
+    fn off_surface_is_a_noop() {
         let mut buf = Buffer::new(1, 2);
-        // y far below the buffer: nothing drawn, no panic.
-        TextBox::new(0, 9, "zz", Style::DEFAULT).draw(&mut buf, ORIGIN);
-        assert!(buf.cells().iter().all(|c| c.ch == ' '));
+        // y far below the surface: nothing drawn, no panic.
+        TextBox::new(0, 9, "zz", Style::DEFAULT).draw(&mut Surface::new(&mut buf));
+        assert_eq!(render(&buf), "  ");
     }
 }

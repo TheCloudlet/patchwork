@@ -5,6 +5,7 @@ use patchwork::buffer::{Color, Style};
 use patchwork::pane::Pane;
 use patchwork::renderer::Renderer;
 use patchwork::shape::{Dot, Line, Rect, RectShape};
+use patchwork::surface::Surface;
 use patchwork::terminal::{Event, Key, Terminal};
 
 fn main() -> io::Result<()> {
@@ -73,17 +74,8 @@ fn paint(renderer: &mut Renderer) {
     root.add_child(quadrant_face(q3));
     root.add_child(quadrant_recursive(q4));
 
-    // Draw the root against a zero origin: its own `area` carries the position.
-    root.draw(buf, ORIGIN);
+    root.draw(&mut Surface::new(buf));
 }
-
-/// A zero-origin rect: the top of the pane tree is positioned by its own area.
-const ORIGIN: Rect = Rect {
-    x: 0,
-    y: 0,
-    w: 0,
-    h: 0,
-};
 
 /// An outlined frame filling the pane (relative coords: 0,0 .. w,h).
 fn frame_local(w: u16, h: u16, color: Color) -> RectShape {

@@ -1,5 +1,6 @@
 use crate::Draw;
 use crate::shape::Rect;
+use crate::surface::Surface;
 
 pub struct Pane {
     pub area: Rect,
@@ -30,25 +31,19 @@ impl Pane {
 }
 
 impl Draw for Pane {
-    fn draw(&self, buf: &mut crate::buffer::Buffer, area: Rect) {
-        // This pane occupies `self.area`, expressed relative to the `area`
-        // it was handed. Translate it into an absolute origin that content and
-        // children are positioned against.
-        let origin = Rect {
-            x: area.x + self.area.x,
-            y: area.y + self.area.y,
-            w: self.area.w,
-            h: self.area.h,
-        };
+    fn draw(&self, surface: &mut Surface) {
+        // Narrow to this pane's area — relative to the surface we were
+        // handed, clamped to it. A pane can never paint outside what it was
+        // given, however optimistic its own area is.
+        let mut own = surface.sub(self.area);
 
         // Painter's algorithm: this pane's own content first (the background),
         // then each child on top, in order. Later items overwrite earlier ones.
-        // Everything is drawn relative to this pane's origin.
         for item in &self.content {
-            item.draw(buf, origin);
+            item.draw(&mut own);
         }
         for child in &self.children {
-            child.draw(buf, origin);
+            child.draw(&mut own);
         }
     }
 }
