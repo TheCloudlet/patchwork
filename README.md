@@ -35,20 +35,24 @@ key you pressed and repaints on resize. Press `q` to quit.
 ## Using it
 
 ```rust
+use patchwork::Draw;
 use patchwork::buffer::{Color, Style};
 use patchwork::renderer::Renderer;
+use patchwork::shape::Dot;
 use patchwork::terminal::Terminal;
 
 let mut term = Terminal::new()?;
 let size = *term.size();
 let mut renderer = Renderer::new(size.rows, size.cols);
 
-// Draw into the back buffer...
-let buf = renderer.next_mut();
-if let Some(cell) = buf.get_mut(0, 0) {
-    cell.ch = 'H';
-    cell.style = Style { fg: Color::Rgb(120, 200, 255), ..Style::DEFAULT };
+// Acquire a blank frame as a Surface, and paint into it...
+let mut surface = renderer.frame();
+Dot {
+    x: 0,
+    y: 0,
+    style: Style { fg: Color::Rgb(120, 200, 255), ..Style::DEFAULT },
 }
+.draw(&mut surface);
 
 // ...then flush only the changed cells to the terminal.
 renderer.draw()?;

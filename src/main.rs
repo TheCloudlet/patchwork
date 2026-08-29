@@ -2,9 +2,10 @@ use std::io;
 
 use patchwork::Draw;
 use patchwork::buffer::{Color, Style};
+use patchwork::decoration::{Border, Fill};
 use patchwork::pane::Pane;
 use patchwork::renderer::Renderer;
-use patchwork::shape::{Dot, Line, Rect, RectShape};
+use patchwork::shape::{Dot, Line, Rect};
 use patchwork::terminal::{Event, Key, Terminal};
 
 fn main() -> io::Result<()> {
@@ -43,7 +44,7 @@ fn main() -> io::Result<()> {
 /// four quadrants. Each shows one drawable kind:
 ///   Q1 (top-left)     a single Dot
 ///   Q2 (top-right)    a diagonal Line
-///   Q3 (bottom-left)  a filled RectShape (a "face"/surface)
+///   Q3 (bottom-left)  a Fill inset inside the border (a "face"/surface)
 ///   Q4 (bottom-right) a recursive Pane, itself split into two outlined boxes
 fn paint(renderer: &mut Renderer) {
     let mut surface = renderer.frame();
@@ -75,23 +76,16 @@ fn paint(renderer: &mut Renderer) {
     root.draw(&mut surface);
 }
 
-/// An outlined frame filling the pane (relative coords: 0,0 .. w,h).
-fn frame_local(w: u16, h: u16, color: Color) -> RectShape {
-    RectShape {
-        area: Rect { x: 0, y: 0, w, h },
-        style: solid(color),
-        fill: false,
-    }
+/// A border around whatever Surface the pane it's pushed onto is handed —
+/// no dimensions to pass in or keep in sync.
+fn border(color: Color) -> Border {
+    Border { style: solid(color) }
 }
 
 /// Q1: a frame plus a single Dot at the quadrant's center.
 fn quadrant_dot(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(
-        area.w,
-        area.h,
-        Color::Rgb(120, 200, 255),
-    )));
+    pane.push(Box::new(border(Color::Rgb(120, 200, 255))));
     pane.push(Box::new(Dot {
         x: area.w / 2,
         y: area.h / 2,
@@ -103,11 +97,7 @@ fn quadrant_dot(area: Rect) -> Pane {
 /// Q2: a frame plus a diagonal Line across the quadrant's interior.
 fn quadrant_line(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(
-        area.w,
-        area.h,
-        Color::Rgb(120, 200, 255),
-    )));
+    pane.push(Box::new(border(Color::Rgb(120, 200, 255))));
     pane.push(Box::new(Line {
         x1: 1,
         y1: 1,
@@ -118,28 +108,24 @@ fn quadrant_line(area: Rect) -> Pane {
     pane
 }
 
-/// Q3: a filled RectShape — a solid "surface" inset inside a frame.
+/// Q3: a frame around a Fill — a solid "surface" inset inside the border.
 fn quadrant_face(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(
-        area.w,
-        area.h,
-        Color::Rgb(120, 200, 255),
-    )));
+    pane.push(Box::new(border(Color::Rgb(120, 200, 255))));
     if area.w > 2 && area.h > 2 {
-        pane.push(Box::new(RectShape {
-            area: Rect {
-                x: 1,
-                y: 1,
-                w: area.w - 2,
-                h: area.h - 2,
-            },
+        let mut inset = Pane::new(Rect {
+            x: 1,
+            y: 1,
+            w: area.w - 2,
+            h: area.h - 2,
+        });
+        inset.push(Box::new(Fill {
             style: Style {
                 bg: Color::Rgb(60, 60, 120),
                 ..Style::DEFAULT
             },
-            fill: true,
         }));
+        pane.add_child(inset);
     }
     pane
 }
@@ -148,11 +134,7 @@ fn quadrant_face(area: Rect) -> Pane {
 /// each drawing its own outlined box — a pane tree nested inside a pane.
 fn quadrant_recursive(area: Rect) -> Pane {
     let mut pane = Pane::new(area);
-    pane.push(Box::new(frame_local(
-        area.w,
-        area.h,
-        Color::Rgb(120, 200, 255),
-    )));
+    pane.push(Box::new(border(Color::Rgb(120, 200, 255))));
 
     // Split the quadrant's interior (in local coords) into left/right sub-panes.
     if area.w > 4 && area.h > 2 {
@@ -165,18 +147,10 @@ fn quadrant_recursive(area: Rect) -> Pane {
         let (left, right) = inner.split_horizontal(50);
 
         let mut left_pane = Pane::new(left);
-        left_pane.push(Box::new(frame_local(
-            left.w,
-            left.h,
-            Color::Rgb(255, 220, 120),
-        )));
+        left_pane.push(Box::new(border(Color::Rgb(255, 220, 120))));
 
         let mut right_pane = Pane::new(right);
-        right_pane.push(Box::new(frame_local(
-            right.w,
-            right.h,
-            Color::Rgb(255, 140, 220),
-        )));
+        right_pane.push(Box::new(border(Color::Rgb(255, 140, 220))));
 
         pane.add_child(left_pane);
         pane.add_child(right_pane);
