@@ -197,10 +197,7 @@ mod tests {
             }
         }
         // The right half is untouched — no bleed.
-        assert_eq!(
-            render(&buf),
-            "####    \n####    \n####    \n####    "
-        );
+        assert_eq!(render(&buf), "####    \n####    \n####    \n####    ");
     }
 
     #[test]

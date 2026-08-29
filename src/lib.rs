@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod decoration;
 pub mod pane;
 pub mod raw_mode;
 pub mod renderer;
