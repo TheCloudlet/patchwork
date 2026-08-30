@@ -79,7 +79,9 @@ fn paint(renderer: &mut Renderer) {
 /// A border around whatever Surface the pane it's pushed onto is handed —
 /// no dimensions to pass in or keep in sync.
 fn border(color: Color) -> Border {
-    Border { style: solid(color) }
+    Border {
+        style: solid(color),
+    }
 }
 
 /// Q1: a frame plus a single Dot at the quadrant's center.
