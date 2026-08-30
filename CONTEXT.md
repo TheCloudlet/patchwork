@@ -1,7 +1,7 @@
 # Patchwork — Domain Context
 
 The vocabulary of this project. Glossary only — no implementation details, no
-plans, no rationale. Rationale for hard-to-reverse choices lives in `docs/adr/`.
+plans, no rationale.
 
 ## Rect
 

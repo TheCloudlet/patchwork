@@ -3,4 +3,5 @@ examples/*/build/
 examples/*/compare_with_upstream.py
 .scratch/
 docs/agents/
+docs/adr/
 CLAUDE.md
