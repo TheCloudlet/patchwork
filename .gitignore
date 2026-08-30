@@ -1,6 +1,6 @@
 /target
-examples/*/*_demo
-examples/*/*_verify
+examples/*/build/
+examples/*/compare_with_upstream.py
 .scratch/
 docs/agents/
 CLAUDE.md
