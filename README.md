@@ -5,7 +5,7 @@ manages the TTY (raw mode, the alternate screen, `SIGWINCH` resizes) and draws
 to the screen with a double-buffered, diff-based renderer that only emits the
 cells that actually changed.
 
-> **Status:** 0.1.0 — early and experimental. The public API will change.
+> **Status:** 0.2.0 — early and experimental. The public API will change.
 
 ## Concepts
 
