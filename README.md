@@ -9,13 +9,14 @@ cells that actually changed.
 
 ## Concepts
 
-A **Pane** is a node in the layout tree: it owns an area, paints its own
-background, and stacks child Panes on top. A **Surface** is the painting
-handle a drawable gets — a clipped view onto the screen buffer, addressed in
-its own local coordinates, where anything drawn outside it is silently
-discarded. A **Drawable** is anything that paints onto a Surface: primitives
-(Dot, Line, Rect, Text), decorations (Border, Fill), and Panes themselves.
-Painting is **immediate mode** — acquire a Surface, draw, present, repeat,
+A **Buffer** is a grid of cells holding one frame's screen content. A
+**Surface** is a clipped view onto a Buffer: it takes local coordinates, and
+discards anything drawn outside its bounds. A **Drawable** — a primitive
+(Dot, Line, Rect, Text), a decoration (Border, Fill), or a **Pane** — paints
+onto a Surface it's given. A Pane is a layout-tree node: it paints its own
+background, then stacks its child Panes on top.
+
+Painting is **immediate mode**: acquire a Surface, draw, present, repeat,
 with nothing kept between frames. See [`CONTEXT.md`](CONTEXT.md) for the
 full glossary.
 
