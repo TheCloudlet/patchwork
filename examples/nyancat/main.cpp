@@ -6,10 +6,10 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#include <charconv>
 #include <chrono>
 #include <csignal>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <format>
 #include <memory>
@@ -95,13 +95,8 @@ TerminalSize query_terminal_size() {
 void paint_cell(pw_frame_t* frame, int screen_x, int screen_y, char ch) {
   int color_index = kCatColorIndex(ch);
   if (color_index < 0) return;  // unmapped character: leave untouched
-  if (screen_x < 0 || screen_y < 0) return;  // left/above the crop window
   pw_style_t style = pw_style_default();
   style.bg = pw_color_indexed(static_cast<uint8_t>(color_index));
-  // Patchwork's own clipping discards anything past the right/bottom
-  // edge, so an out-of-range positive coordinate here is safe to hand
-  // off as-is — only negative coordinates need guarding above, since
-  // pw_rect_t's fields are unsigned and would wrap.
   pw_draw_rect(frame,
                pw_rect_t{static_cast<uint16_t>(screen_x),
                          static_cast<uint16_t>(screen_y), kCellWidth, 1},
@@ -190,10 +185,8 @@ void draw_counter(pw_frame_t* frame, int terminal_cols, int elapsed_row,
   int start_col = (terminal_cols - len) / 2;
   if (start_col < 0) start_col = 0;
   pw_style_t text_style = pw_style_default();
-  text_style.fg =
-      pw_color_indexed(15);  // bright white, matching nyancat.c's \033[1;37m
-  text_style.bg = pw_color_indexed(
-      kBackgroundColorIndex);  // same blue, so glyph cells blend into the bar
+  text_style.fg = pw_color_indexed(15);  // Bright white.
+  text_style.bg = pw_color_indexed(kBackgroundColorIndex);
   pw_draw_text(frame, static_cast<uint16_t>(start_col),
                static_cast<uint16_t>(elapsed_row), static_cast<uint16_t>(len),
                1, text.c_str(), text_style);
@@ -204,11 +197,24 @@ void draw_counter(pw_frame_t* frame, int terminal_cols, int elapsed_row,
 int main(int argc, char** argv) {
   int total_ticks = kTotalTicksDefault;
   for (int i = 1; i < argc; ++i) {
-    if ((std::strcmp(argv[i], "-f") == 0 ||
-         std::strcmp(argv[i], "--frames") == 0) &&
-        i + 1 < argc) {
-      total_ticks = std::atoi(argv[++i]);
+    if (std::strcmp(argv[i], "-f") != 0 &&
+        std::strcmp(argv[i], "--frames") != 0) {
+      continue;
     }
+    if (++i == argc) {
+      std::fputs("error: --frames requires a positive integer\n", stderr);
+      return 2;
+    }
+
+    const char* value = argv[i];
+    const char* end = value + std::strlen(value);
+    int parsed_ticks = 0;
+    auto result = std::from_chars(value, end, parsed_ticks);
+    if (result.ec != std::errc{} || result.ptr != end || parsed_ticks <= 0) {
+      std::fputs("error: --frames requires a positive integer\n", stderr);
+      return 2;
+    }
+    total_ticks = parsed_ticks;
   }
 
   auto [terminal_cols, terminal_rows] = query_terminal_size();
@@ -218,6 +224,7 @@ int main(int argc, char** argv) {
 
   struct sigaction sa{};
   sa.sa_handler = handle_sigwinch;
+  sa.sa_flags = SA_RESTART;
   sigemptyset(&sa.sa_mask);
   sigaction(SIGWINCH, &sa, nullptr);
 
