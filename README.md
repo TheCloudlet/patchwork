@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/img/cover.png" alt="patchwork: a small, diff-based terminal ui toolkit for rust" width="720">
+</p>
+
 # patchwork
 
 A small terminal UI toolkit for Rust, built directly on `libc`. patchwork
