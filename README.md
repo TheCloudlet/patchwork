@@ -1,6 +1,6 @@
-# Patchwork
+# patchwork
 
-A small terminal UI toolkit for Rust, built directly on `libc`. Patchwork
+A small terminal UI toolkit for Rust, built directly on `libc`. patchwork
 manages the TTY (raw mode, the alternate screen, `SIGWINCH` resizes) and draws
 to the screen with a double-buffered, diff-based renderer that only emits the
 cells that actually changed.
@@ -20,7 +20,7 @@ Painting is **immediate mode**: acquire a Surface, draw, present, repeat,
 with nothing kept between frames. See [`CONTEXT.md`](CONTEXT.md) for the
 full glossary.
 
-Patchwork is a Rust library, but it isn't Rust-only: `src/ffi.rs` exposes an
+patchwork is a Rust library, but it isn't Rust-only: `src/ffi.rs` exposes an
 immediate-mode **C API** — a renderer, one draw call per primitive, and a
 present — so it can be embedded from C/C++ too. See
 [`examples/nyancat`](examples/nyancat) for an end-to-end demo driving the C
@@ -91,4 +91,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-Repository: <https://github.com/TheCloudlet/Patchwork>
+Repository: <https://github.com/TheCloudlet/patchwork>

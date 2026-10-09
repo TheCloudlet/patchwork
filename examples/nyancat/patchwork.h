@@ -1,4 +1,4 @@
-// C/C++ header for Patchwork's immediate-mode FFI layer (src/ffi.rs).
+// C/C++ header for patchwork's immediate-mode FFI layer (src/ffi.rs).
 // Hand-written to mirror the #[repr(C)] / #[repr(C, u8)] layouts verified
 // against rustc's actual output — not auto-generated, since the crate has
 // no cbindgen setup and this is a one-off verification demo.

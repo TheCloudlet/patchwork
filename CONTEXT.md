@@ -1,4 +1,4 @@
-# Patchwork — Domain Context
+# patchwork — Domain Context
 
 The vocabulary of this project. Glossary only — no implementation details, no
 plans, no rationale.

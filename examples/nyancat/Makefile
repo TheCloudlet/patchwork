@@ -1,4 +1,4 @@
-# Builds this demo (main.cpp) against Patchwork's C API (src/ffi.rs). Build
+# Builds this demo (main.cpp) against patchwork's C API (src/ffi.rs). Build
 # output goes to build/, which is entirely gitignored — no per-binary-name
 # pattern to keep in sync as new binaries get added.
 #

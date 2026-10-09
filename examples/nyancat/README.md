@@ -1,6 +1,6 @@
-# nyancat — a Patchwork C API demo
+# nyancat — a patchwork C API demo
 
-A terminal Nyan Cat animation, driving Patchwork's immediate-mode C API
+A terminal Nyan Cat animation, driving patchwork's immediate-mode C API
 (`src/ffi.rs`) end to end from a real C++ program: `pw_renderer_new`,
 `pw_frame_begin`, the `pw_draw_*` primitives, and `pw_present`, all called
 directly through the RAII wrappers `main.cpp` defines.
@@ -39,4 +39,4 @@ and centered, same as upstream — so there's no minimum size requirement.
 Resizing the terminal window live is handled too: the demo installs its own
 `SIGWINCH` handler and rebuilds the renderer at the new size (see the
 comment above `handle_sigwinch` in `main.cpp` for why that lives on this
-side of the FFI boundary, not inside Patchwork itself).
+side of the FFI boundary, not inside patchwork itself).

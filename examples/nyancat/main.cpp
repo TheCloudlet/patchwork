@@ -1,4 +1,4 @@
-// Drives Patchwork's immediate-mode C API (src/ffi.rs) from a real C++
+// Drives patchwork's immediate-mode C API (src/ffi.rs) from a real C++
 // program: klange/nyancat's actual animation, ported byte-for-byte (see
 // frames.h), driving pw_renderer_new, pw_frame_begin, the draw primitives,
 // and pw_present through RAII wrappers.
@@ -21,11 +21,11 @@
 
 namespace {
 
-// Patchwork's C API is immediate-mode primitives only: it owns no
+// patchwork's C API is immediate-mode primitives only: it owns no
 // terminal session or event loop, so it has no fd or signal-mask relationship
 // to receive SIGWINCH against, and installing a handler inside the FFI layer
 // would mean silently claiming a process-wide signal on this program's
-// behalf. That puts Patchwork's C API in the same boundary position as
+// behalf. That puts patchwork's C API in the same boundary position as
 // libvterm (a detached component the embedder drives), not ncurses/notcurses
 // (a library that owns the terminal session and installs its own handler).
 // So the caller — this file — installs its own handler and reacts by
@@ -33,7 +33,7 @@ namespace {
 // pw_renderer_free pair; no FFI change needed.
 //
 // The handler only sets a flag: async-signal-safe code can't allocate or
-// call back into Patchwork, so the actual resize (re-querying the terminal,
+// call back into patchwork, so the actual resize (re-querying the terminal,
 // rebuilding the renderer) happens on the next loop iteration in main().
 volatile std::sig_atomic_t g_resize_pending = 0;
 
@@ -62,10 +62,10 @@ constexpr int kCellWidth = 2;
 constexpr int kTotalTicksDefault = 200;
 
 // Queries the real terminal size via the TIOCGWINSZ ioctl — the same
-// mechanism Patchwork's own Rust-side terminal layer uses (src/terminal.rs).
+// mechanism patchwork's own Rust-side terminal layer uses (src/terminal.rs).
 // pw_frame_width/pw_frame_height report back whatever size the caller gave
 // pw_renderer_new; they don't query the OS, so this has to happen before a
-// renderer is even created, using a syscall Patchwork's C API has no reason
+// renderer is even created, using a syscall patchwork's C API has no reason
 // to wrap.
 //
 // Queries /dev/tty directly rather than stdin/stdout: either of those can
@@ -162,7 +162,7 @@ void draw_frame(pw_frame_t* frame, int tick, int terminal_cols,
 // competing with the animation for space.
 //
 // The row gets a solid fill first, then the text is drawn on top of it
-// (Patchwork's pw_draw_text always overrides whatever a cell already
+// (patchwork's pw_draw_text always overrides whatever a cell already
 // holds) — so the bar is blue everywhere except where the text itself
 // covers it. Uses the same palette index (17) as the scene's own
 // background (kCatColorIndex(',') in frames.h) rather than the generic
